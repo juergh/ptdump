@@ -6,7 +6,7 @@ obj-m = ptdump.o
 all: ptdump.ko ptdump_cli
 
 ptdump_cli: ptdump_cli.c
-	gcc -Wall $< -o $@
+	$(CROSS_COMPILE)gcc -Wall $< -o $@
 
 ptdump.ko: ptdump.h ptdump.c
 	$(MAKE) -C $(kdir) M=$$(pwd)
