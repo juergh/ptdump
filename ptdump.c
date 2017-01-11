@@ -1,9 +1,7 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/kallsyms.h>
-#include <linux/mm.h>
 #include <linux/module.h>
-#include <linux/sched.h>
 #include <linux/uaccess.h>
 
 #include <asm/pgtable.h>
@@ -14,53 +12,168 @@ static int ptdump_major;
 static struct class *ptdump_class;
 static struct mm_struct *__init_mm;
 
-#define PT_LEVEL_CR3 0
-#define PT_LEVEL_PGD 1
-#define PT_LEVEL_PUD 2
-#define PT_LEVEL_PMD 3
-#define PT_LEVEL_PTE 4
+#define PT_LEVEL_NONE 0
+#define PT_LEVEL_PGD  1
+#define PT_LEVEL_PUD  2
+#define PT_LEVEL_PMD  3
+#define PT_LEVEL_PTE  4
+
+/* -------------------------------------------------------------------------
+   x86-64
+   ------------------------------------------------------------------------- */
+
+#ifdef CONFIG_X86_64
 
 static const char * const PT_LEVEL_NAME[] = {
-	"cr3", "pgd", "pud", "pmd", "pte"
+	"   ", "pgd", "pud", "pmd", "pte"
 };
 
-static void printk_prot(pgprot_t prot, int level)
-{
-        pgprotval_t pr = pgprot_val(prot);
+static const char * const PT_LEVEL_SIZE[] = {
+	"  ", "  ", "1G", "2M", "4K"
+};
 
-	if (!pgprot_val(prot)) {
+static void printk_prot(unsigned long val, int level)
+{
+	printk(KERN_CONT "| ");
+
+	if (!val) {
                 printk(KERN_CONT "                              ");
 		goto out;
 	}
 	
-	printk(KERN_CONT "%s ", (pr & _PAGE_USER) ? "USR" : "   ");
-	printk(KERN_CONT "%s ", (pr & _PAGE_RW) ? "RW" : "ro");
-	printk(KERN_CONT "%s ", (pr & _PAGE_PWT) ? "PWT" : "   ");
-	printk(KERN_CONT "%s ", (pr & _PAGE_PCD) ? "PCD" : "   ");
-	printk(KERN_CONT "%s ", (pr & _PAGE_PSE && level <= 3) ?
+	printk(KERN_CONT "%s ", (val & _PAGE_USER) ? "USR" : "   ");
+	printk(KERN_CONT "%s ", (val & _PAGE_RW) ? "RW" : "ro");
+	printk(KERN_CONT "%s ", (val & _PAGE_PWT) ? "PWT" : "   ");
+	printk(KERN_CONT "%s ", (val & _PAGE_PCD) ? "PCD" : "   ");
+	printk(KERN_CONT "%s ", (val & _PAGE_PSE && level <= 3) ?
 	       "PSE" : "   ");
-	printk(KERN_CONT "%s ", ((pr & _PAGE_PAT_LARGE &&
+	printk(KERN_CONT "%s ", ((val & _PAGE_PAT_LARGE &&
 				  (level == 2 || level == 3)) ||
-				 (pr & _PAGE_PAT && level == 4)) ?
+				 (val & _PAGE_PAT && level == 4)) ?
 	       "PAT" : "   ");
-	printk(KERN_CONT "%s ", (pr & _PAGE_GLOBAL) ? "GLB" : "   ");
-	printk(KERN_CONT "%s ", (pr & _PAGE_NX) ? "NX" : "x ");
+	printk(KERN_CONT "%s ", (val & _PAGE_GLOBAL) ? "GLB" : "   ");
+	printk(KERN_CONT "%s ", (val & _PAGE_NX) ? "NX" : "x ");
 
 out:
-        printk(KERN_CONT "%s\n", PT_LEVEL_NAME[level]);
+        printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
+	       PT_LEVEL_SIZE[level]);
 }
 
-static const char * const PG_LEVEL_NAME[] = {
-	"none", "4K", "2M", "1G"
+#endif
+
+/* -------------------------------------------------------------------------
+   arm64
+   ------------------------------------------------------------------------- */
+
+#ifdef CONFIG_ARM64
+
+#define pud_large(x) pud_sect(x)
+#define pmd_large(x) pmd_sect(x)
+
+#define pgd_flags(x) pgd_val(x)
+#define pud_flags(x) pud_val(x)
+#define pmd_flags(x) pmd_val(x)
+#define pte_flags(x) pte_val(x)
+
+#define PUD_PAGE_MASK PUD_MASK
+#define PMD_PAGE_MASK PMD_MASK
+
+static const char * const PT_LEVEL_NAME[] = {
+	"   ", "pgd",
+	CONFIG_PGTABLE_LEVELS > 3 ? "pud" : "pgd",
+	CONFIG_PGTABLE_LEVELS > 2 ? "pmd" : "pgd",
+	"pte"
 };
 
-static void printk_pagetable(unsigned long addr)
+#ifdef CONFIG_ARM64_4K_PAGES
+#define _NONE_SIZE "  "
+#define _PGD_SIZE  "  "
+#define _PUD_SIZE  "1G"
+#define _PMD_SIZE  "2M"
+#define _PTE_SIZE  "4K"
+#endif
+
+#ifdef CONFIG_ARM64_16K_PAGES
+#define _NONE_SIZE "   "
+#define _PGD_SIZE  "   "
+#define _PUD_SIZE  "   "
+#define _PMD_SIZE  "32M"
+#define _PTE_SIZE  "16K"
+#endif
+
+#ifdef CONFIG_ARM64_64K_PAGES
+#define _NONE_SIZE "    "
+#define _PGD_SIZE  "    "
+#define _PUD_SIZE  "    "
+#define _PMD_SIZE  "512M"
+#define _PTE_SIZE  "64K "
+#endif
+
+static const char * const PT_LEVEL_SIZE[] = {
+	_NONE_SIZE, _PGD_SIZE,
+	CONFIG_PGTABLE_LEVELS > 3 ? _PUD_SIZE : _PGD_SIZE,
+	CONFIG_PGTABLE_LEVELS > 2 ? _PMD_SIZE : _PGD_SIZE,
+	_PTE_SIZE
+};
+
+static void printk_prot(unsigned long val, int level)
+{
+	printk(KERN_CONT "| ");
+
+	if (!val) {
+		printk(KERN_CONT "                                          ");
+		goto out;
+	}
+
+	printk(KERN_CONT "%s ", (val & PTE_TABLE_BIT) ? "   " : "blk");
+	printk(KERN_CONT "%s ", (val & PTE_USER) ? "USR" : "   ");
+	printk(KERN_CONT "%s ", (val & PTE_RDONLY) ? "RO" : "rw");
+	printk(KERN_CONT "%s ", (val & PTE_SHARED) ? "SHD" : "   ");
+	printk(KERN_CONT "%s ", (val & PTE_AF) ? "AF" : "  ");
+	printk(KERN_CONT "%s ", (val & PTE_NG) ? "NG" : "  ");
+//	printk(KERN_CONT "%s ", (val & PTE_DBM) ? "DBM" : "   ");
+//	printk(KERN_CONT "%s ", (val & PTE_CONT) ? "CONT" : "    ");
+	printk(KERN_CONT "%s ", (val & PTE_PXN) ? "NX" : "x ");
+	printk(KERN_CONT "%s ", (val & PTE_UXN) ? "UXN" : "   ");
+
+	switch (val & PTE_ATTRINDX_MASK) {
+	case PTE_ATTRINDX(MT_DEVICE_nGnRnE):
+		printk(KERN_CONT "DEVICE/nGnRnE ");
+		break;
+	case PTE_ATTRINDX(MT_DEVICE_nGnRE):
+		printk(KERN_CONT "DEVICE/nGnRE  ");
+		break;
+	case PTE_ATTRINDX(MT_DEVICE_GRE):
+		printk(KERN_CONT "DEVICE/GRE    ");
+		break;
+	case PTE_ATTRINDX(MT_NORMAL_NC):
+		printk(KERN_CONT "MEM/NORMAL-NC ");
+		break;
+	case PTE_ATTRINDX(MT_NORMAL):
+		printk(KERN_CONT "MEM/NORMAL    ");
+		break;
+	default:
+		printk(KERN_CONT "              ");
+		break;
+	}
+
+out:
+        printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
+	       PT_LEVEL_SIZE[level]);
+}
+
+#endif
+
+/* -------------------------------------------------------------------------
+   generic
+   ------------------------------------------------------------------------- */
+
+void printk_pagetable(unsigned long addr)
 {
 	pgd_t *pgd;
 	pud_t *pud;
 	pmd_t *pmd = NULL;
 	pte_t *pte = NULL;
-	unsigned int level = PG_LEVEL_4K;
 	unsigned long phys_addr, offset;
 	struct page *page = virt_to_page(addr);
 
@@ -75,32 +188,34 @@ static void printk_pagetable(unsigned long addr)
                 /* user (process) virtual address */
                 pgd = pgd_offset(current->mm, addr);
         }
-	printk("  pgd: %016lx (%016lx) ", (unsigned long)pgd, pgd_val(*pgd));
-	printk_prot(__pgprot(pgd_flags(*pgd)), PT_LEVEL_PGD);
-	
+	printk("  pgd: %016lx (%016lx) ", (unsigned long)pgd,
+	       (unsigned long)pgd_val(*pgd));
+	printk_prot(pgd_flags(*pgd), PT_LEVEL_PGD);
+
 	pud = pud_offset(pgd, addr);
-	printk("  pud: %016lx (%016lx) ", (unsigned long)pud, pud_val(*pud));
-	printk_prot(__pgprot(pud_flags(*pud)), PT_LEVEL_PUD);
+	printk("  pud: %016lx (%016lx) ", (unsigned long)pud,
+	       (unsigned long)pud_val(*pud));
+	printk_prot(pud_flags(*pud), PT_LEVEL_PUD);
         if (pud_large(*pud) || !pud_present(*pud)) {
-		level = PG_LEVEL_1G;
 		phys_addr = (unsigned long)pud_pfn(*pud) << PAGE_SHIFT;
                 offset = addr & ~PUD_PAGE_MASK;
 		goto out;
 	}
 
 	pmd = pmd_offset(pud, addr);
-	printk("  pmd: %016lx (%016lx) ", (unsigned long)pmd, pmd_val(*pmd));
-	printk_prot(__pgprot(pmd_flags(*pmd)), PT_LEVEL_PMD);
+	printk("  pmd: %016lx (%016lx) ", (unsigned long)pmd,
+	       (unsigned long)pmd_val(*pmd));
+	printk_prot(pmd_flags(*pmd), PT_LEVEL_PMD);
         if (pmd_large(*pmd) || !pmd_present(*pmd)) {
-		level = PG_LEVEL_2M;
                 phys_addr = (unsigned long)pmd_pfn(*pmd) << PAGE_SHIFT;
                 offset = addr & ~PMD_PAGE_MASK;
                 goto out;
 	}
 
 	pte =  pte_offset_kernel(pmd, addr);
-	printk("  pte: %016lx (%016lx) ", (unsigned long)pte, pte_val(*pte));
-	printk_prot(__pgprot(pte_flags(*pte)), PT_LEVEL_PTE);
+	printk("  pte: %016lx (%016lx) ", (unsigned long)pte,
+	       (unsigned long)pte_val(*pte));
+	printk_prot(pte_flags(*pte), PT_LEVEL_PTE);
 	phys_addr = (unsigned long)pte_pfn(*pte) << PAGE_SHIFT;
 	offset = addr & ~PAGE_MASK;
 
@@ -110,56 +225,16 @@ out:
 		printk("  pmd_page: %016lx\n", (unsigned long)pmd_page(*pmd));
 	if (pte)
 		printk("  pte_page: %016lx\n", (unsigned long)pte_page(*pte));
-	printk("  physical addr: %016lx\n",
-	       (unsigned long)(phys_addr | offset));
+	printk("  physical addr: %016lx\n", phys_addr | offset);
 	printk("  page addr: %016lx\n", phys_addr);
-	printk("  page size: %s\n", PG_LEVEL_NAME[level]);
 	printk("  ------------------------------\n");
 }
 
-/*
- * Copy of lookup_address_in_pgd() from arch/x86/mm/pageattr.c
- */
-static pte_t *__lookup_addr_in_pgd(pgd_t *pgd, unsigned long addr,
-                                   unsigned int *level)
-{
-        pud_t *pud;
-        pmd_t *pmd;
-
-        *level = PG_LEVEL_NONE;
-
-        if (pgd_none(*pgd))
-                return NULL;
-
-        pud = pud_offset(pgd, addr);
-        if (pud_none(*pud))
-                return NULL;
-
-        *level = PG_LEVEL_1G;
-        if (pud_large(*pud) || !pud_present(*pud))
-                return (pte_t *)pud;
-
-        pmd = pmd_offset(pud, addr);
-        if (pmd_none(*pmd))
-                return NULL;
-
-        *level = PG_LEVEL_2M;
-        if (pmd_large(*pmd) || !pmd_present(*pmd))
-                return (pte_t *)pmd;
-
-        *level = PG_LEVEL_4K;
-
-        return pte_offset_kernel(pmd, addr);
-}
-
-/*
- * Look up a virtual (process or kernel) address and return its PTE
- *
- * Based on lookup_address() from arch/x86/mm/pageattr.c
- */
 static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
 {
         pgd_t *pgd;
+        pud_t *pud;
+        pmd_t *pmd;
 
         if (addr > PAGE_OFFSET) {
                 /* kernel virtual address */
@@ -169,7 +244,30 @@ static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
                 pgd = pgd_offset(current->mm, addr);
         }
 
-	return __lookup_addr_in_pgd(pgd, addr, level);
+        *level = PT_LEVEL_NONE;
+
+        if (pgd_none(*pgd))
+                return NULL;
+
+        pud = pud_offset(pgd, addr);
+        if (pud_none(*pud))
+                return NULL;
+
+        *level = PT_LEVEL_PUD;
+        if (pud_large(*pud) || !pud_present(*pud))
+                return (pte_t *)pud;
+
+        pmd = pmd_offset(pud, addr);
+        if (pmd_none(*pmd))
+                return NULL;
+
+        *level = PT_LEVEL_PMD;
+        if (pmd_large(*pmd) || !pmd_present(*pmd))
+                return (pte_t *)pmd;
+
+        *level = PT_LEVEL_PTE;
+
+        return pte_offset_kernel(pmd, addr);
 }
 
 /*
@@ -194,11 +292,11 @@ static unsigned long any_virt_to_phys(unsigned long addr)
          * make 32-PAE kernel work correctly.
          */
         switch (level) {
-        case PG_LEVEL_1G:
+        case PT_LEVEL_PUD:
                 phys_addr = (unsigned long)pud_pfn(*(pud_t *)pte) << PAGE_SHIFT;
                 offset = addr & ~PUD_PAGE_MASK;
                 break;
-        case PG_LEVEL_2M:
+        case PT_LEVEL_PMD:
                 phys_addr = (unsigned long)pmd_pfn(*(pmd_t *)pte) << PAGE_SHIFT;
                 offset = addr & ~PMD_PAGE_MASK;
                 break;
@@ -215,7 +313,7 @@ static unsigned long any_virt_to_phys(unsigned long addr)
  */
 static unsigned long phys_to_kern(unsigned long phys_addr)
 {
-        return (unsigned long)phys_to_virt(phys_addr);
+	return (unsigned long)phys_to_virt(phys_addr);
 }
 
 static int ptdump_open(struct inode *i, struct file *f)
@@ -231,7 +329,7 @@ static int ptdump_release(struct inode *i, struct file *f)
 static long ptdump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ptdump_req *req = (struct ptdump_req *)arg;
-	unsigned long phys_addr, kern_addr;
+	unsigned long phys_addr, kern_addr, paddr;
 	unsigned long buf;
 
 	printk("--------------------------------------------------------------"
@@ -241,7 +339,7 @@ static long ptdump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	       req->order);
 	printk("user data: %s\n", (char *)req->addr);
 	printk_pagetable(req->addr);
-	
+
 	switch (cmd) {
 
 	case PTDUMP_DUMP:
@@ -252,6 +350,11 @@ static long ptdump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		printk("kernel addr: %016lx\n", kern_addr);
 		printk("kernel data: %s\n", (char *)kern_addr);
 		printk_pagetable(kern_addr);
+
+		/* Validate our address translation */
+		paddr = virt_to_phys((void *)kern_addr);
+		if (paddr != phys_addr)
+			printk("+++ Incorrect address translation +++\n");
 
 		break;
 
