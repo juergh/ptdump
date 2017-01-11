@@ -70,11 +70,6 @@ out:
 #define pud_large(x) pud_sect(x)
 #define pmd_large(x) pmd_sect(x)
 
-#define pgd_flags(x) pgd_val(x)
-#define pud_flags(x) pud_val(x)
-#define pmd_flags(x) pmd_val(x)
-#define pte_flags(x) pte_val(x)
-
 #define PUD_PAGE_MASK PUD_MASK
 #define PMD_PAGE_MASK PMD_MASK
 
@@ -190,12 +185,12 @@ void printk_pagetable(unsigned long addr)
         }
 	printk("  pgd: %016lx (%016lx) ", (unsigned long)pgd,
 	       (unsigned long)pgd_val(*pgd));
-	printk_prot(pgd_flags(*pgd), PT_LEVEL_PGD);
+	printk_prot(pgd_val(*pgd), PT_LEVEL_PGD);
 
 	pud = pud_offset(pgd, addr);
 	printk("  pud: %016lx (%016lx) ", (unsigned long)pud,
 	       (unsigned long)pud_val(*pud));
-	printk_prot(pud_flags(*pud), PT_LEVEL_PUD);
+	printk_prot(pud_val(*pud), PT_LEVEL_PUD);
         if (pud_large(*pud) || !pud_present(*pud)) {
 		phys_addr = (unsigned long)pud_pfn(*pud) << PAGE_SHIFT;
                 offset = addr & ~PUD_PAGE_MASK;
@@ -205,7 +200,7 @@ void printk_pagetable(unsigned long addr)
 	pmd = pmd_offset(pud, addr);
 	printk("  pmd: %016lx (%016lx) ", (unsigned long)pmd,
 	       (unsigned long)pmd_val(*pmd));
-	printk_prot(pmd_flags(*pmd), PT_LEVEL_PMD);
+	printk_prot(pmd_val(*pmd), PT_LEVEL_PMD);
         if (pmd_large(*pmd) || !pmd_present(*pmd)) {
                 phys_addr = (unsigned long)pmd_pfn(*pmd) << PAGE_SHIFT;
                 offset = addr & ~PMD_PAGE_MASK;
@@ -215,7 +210,7 @@ void printk_pagetable(unsigned long addr)
 	pte =  pte_offset_kernel(pmd, addr);
 	printk("  pte: %016lx (%016lx) ", (unsigned long)pte,
 	       (unsigned long)pte_val(*pte));
-	printk_prot(pte_flags(*pte), PT_LEVEL_PTE);
+	printk_prot(pte_val(*pte), PT_LEVEL_PTE);
 	phys_addr = (unsigned long)pte_pfn(*pte) << PAGE_SHIFT;
 	offset = addr & ~PAGE_MASK;
 
