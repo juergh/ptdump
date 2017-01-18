@@ -126,8 +126,8 @@ static void printk_prot(unsigned long val, int level)
 	printk(KERN_CONT "%s ", (val & PTE_SHARED) ? "SHD" : "   ");
 	printk(KERN_CONT "%s ", (val & PTE_AF) ? "AF" : "  ");
 	printk(KERN_CONT "%s ", (val & PTE_NG) ? "NG" : "  ");
-//	printk(KERN_CONT "%s ", (val & PTE_DBM) ? "DBM" : "   ");
-//	printk(KERN_CONT "%s ", (val & PTE_CONT) ? "CONT" : "    ");
+	printk(KERN_CONT "%s ", (val & PTE_DBM) ? "DBM" : "   ");
+	printk(KERN_CONT "%s ", (val & PTE_CONT) ? "CONT" : "    ");
 	printk(KERN_CONT "%s ", (val & PTE_PXN) ? "NX" : "x ");
 	printk(KERN_CONT "%s ", (val & PTE_UXN) ? "UXN" : "   ");
 
