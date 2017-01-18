@@ -163,7 +163,14 @@ out:
    generic
    ------------------------------------------------------------------------- */
 
-void printk_pagetable(unsigned long addr)
+static int bad_address(void *p)
+{
+	unsigned long dummy;
+
+	return probe_kernel_address((unsigned long *)p, dummy);
+}
+
+static void printk_pagetable(unsigned long addr)
 {
 	pgd_t *pgd;
 	pud_t *pud;
@@ -343,7 +350,10 @@ static long ptdump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		phys_addr = any_virt_to_phys(req->addr);
 		kern_addr = phys_to_kern(phys_addr);
 		printk("kernel addr: %016lx\n", kern_addr);
-		printk("kernel data: %s\n", (char *)kern_addr);
+		if (bad_address((void *)kern_addr))
+			printk("kernel data: *** BAD ADDRESS ***\n");
+		else
+			printk("kernel data: %s\n", (char *)kern_addr);
 		printk_pagetable(kern_addr);
 
 		/* Validate our address translation */
