@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2017 Canonical Group Ltd
  * Copyright (C) 2017 Hewlett Packard Enterprise Development, L.P.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -22,9 +23,10 @@ static struct mm_struct *__init_mm;
 
 #define PT_LEVEL_NONE 0
 #define PT_LEVEL_PGD  1
-#define PT_LEVEL_PUD  2
-#define PT_LEVEL_PMD  3
-#define PT_LEVEL_PTE  4
+#define PT_LEVEL_P4D  2
+#define PT_LEVEL_PUD  3
+#define PT_LEVEL_PMD  4
+#define PT_LEVEL_PTE  5
 
 /* -------------------------------------------------------------------------
    x86-64
@@ -33,11 +35,11 @@ static struct mm_struct *__init_mm;
 #ifdef CONFIG_X86_64
 
 static const char * const PT_LEVEL_NAME[] = {
-	"   ", "pgd", "pud", "pmd", "pte"
+	"   ", "pgd", "p4d", "pud", "pmd", "pte"
 };
 
 static const char * const PT_LEVEL_SIZE[] = {
-	"  ", "  ", "1G", "2M", "4K"
+	"  ", "  ", "512G", "1G", "2M", "4K"
 };
 
 static void printk_prot(unsigned long val, int level)
@@ -181,7 +183,8 @@ static int bad_address(void *p)
 static void printk_pagetable(unsigned long addr)
 {
 	pgd_t *pgd;
-	pud_t *pud;
+	p4d_t *p4d;
+	pud_t *pud = NULL;
 	pmd_t *pmd = NULL;
 	pte_t *pte = NULL;
 	unsigned long phys_addr, offset;
@@ -202,13 +205,23 @@ static void printk_pagetable(unsigned long addr)
 	       (unsigned long)pgd_val(*pgd));
 	printk_prot(pgd_val(*pgd), PT_LEVEL_PGD);
 
-	pud = pud_offset(pgd, addr);
+	p4d = p4d_offset(pgd, addr);
+	printk("  p4d: %016lx (%016lx) ", (unsigned long)p4d,
+	       (unsigned long)p4d_val(*p4d));
+	printk_prot(p4d_val(*p4d), PT_LEVEL_P4D);
+        if (p4d_large(*p4d) || !p4d_present(*p4d)) {
+		phys_addr = (unsigned long)p4d_pfn(*p4d) << PAGE_SHIFT;
+                offset = addr & ~P4D_MASK;
+		goto out;
+	}
+
+	pud = pud_offset(p4d, addr);
 	printk("  pud: %016lx (%016lx) ", (unsigned long)pud,
 	       (unsigned long)pud_val(*pud));
 	printk_prot(pud_val(*pud), PT_LEVEL_PUD);
         if (pud_large(*pud) || !pud_present(*pud)) {
 		phys_addr = (unsigned long)pud_pfn(*pud) << PAGE_SHIFT;
-                offset = addr & ~PUD_PAGE_MASK;
+                offset = addr & ~PUD_MASK;
 		goto out;
 	}
 
@@ -218,7 +231,7 @@ static void printk_pagetable(unsigned long addr)
 	printk_prot(pmd_val(*pmd), PT_LEVEL_PMD);
         if (pmd_large(*pmd) || !pmd_present(*pmd)) {
                 phys_addr = (unsigned long)pmd_pfn(*pmd) << PAGE_SHIFT;
-                offset = addr & ~PMD_PAGE_MASK;
+                offset = addr & ~PMD_MASK;
                 goto out;
 	}
 
@@ -230,7 +243,9 @@ static void printk_pagetable(unsigned long addr)
 	offset = addr & ~PAGE_MASK;
 
 out:
-	printk("  pud_page: %016lx\n", (unsigned long)pud_page(*pud));
+	printk("  p4d_page: %016lx\n", (unsigned long)p4d_page(*p4d));
+	if (pud)
+		printk("  pud_page: %016lx\n", (unsigned long)pud_page(*pud));
 	if (pmd)
 		printk("  pmd_page: %016lx\n", (unsigned long)pmd_page(*pmd));
 	if (pte)
@@ -243,6 +258,7 @@ out:
 static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
 {
         pgd_t *pgd;
+	p4d_t *p4d;
         pud_t *pud;
         pmd_t *pmd;
 
@@ -259,7 +275,15 @@ static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
         if (pgd_none(*pgd))
                 return NULL;
 
-        pud = pud_offset(pgd, addr);
+	p4d = p4d_offset(pgd, addr);
+	if (p4d_none(*p4d))
+		return NULL;
+
+	*level = PT_LEVEL_P4D;
+	if (p4d_large(*p4d) || !p4d_present(*p4d))
+		return (pte_t *)p4d;
+
+        pud = pud_offset(p4d, addr);
         if (pud_none(*pud))
                 return NULL;
 
@@ -302,13 +326,17 @@ static unsigned long any_virt_to_phys(unsigned long addr)
          * make 32-PAE kernel work correctly.
          */
         switch (level) {
+        case PT_LEVEL_P4D:
+                phys_addr = (unsigned long)p4d_pfn(*(p4d_t *)pte) << PAGE_SHIFT;
+                offset = addr & ~P4D_MASK;
+                break;
         case PT_LEVEL_PUD:
                 phys_addr = (unsigned long)pud_pfn(*(pud_t *)pte) << PAGE_SHIFT;
-                offset = addr & ~PUD_PAGE_MASK;
+                offset = addr & ~PUD_MASK;
                 break;
         case PT_LEVEL_PMD:
                 phys_addr = (unsigned long)pmd_pfn(*(pmd_t *)pte) << PAGE_SHIFT;
-                offset = addr & ~PMD_PAGE_MASK;
+                offset = addr & ~PMD_MASK;
                 break;
         default:
                 phys_addr = (unsigned long)pte_pfn(*pte) << PAGE_SHIFT;
@@ -336,18 +364,25 @@ static int ptdump_release(struct inode *i, struct file *f)
         return 0;
 }
 
-static long ptdump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long ptdump_ioctl(struct file *file, unsigned int cmd,
+			 unsigned long arg)
 {
-	struct ptdump_req *req = (struct ptdump_req *)arg;
+	struct ptdump_req __user karg, *req = &karg;
 	unsigned long phys_addr, kern_addr, paddr;
 	unsigned long buf;
 
 	printk("--------------------------------------------------------------"
 	       "-----------------\n");
-        printk("pid: %d, comm: %s\n", current->pid, current->comm);
-	printk("user addr: %016lx, order: %d\n", req->addr,
-	       req->order);
-	printk("user data: %s\n", (char *)req->addr);
+
+	printk("pid: %d, comm: %s\n", current->pid, current->comm);
+
+	if (copy_from_user(&karg, (void *)arg, sizeof(struct ptdump_req))) {
+		printk("failed to copy_from_user()\n");
+		return -EFAULT;
+	}
+
+	printk("user addr: %016lx, order: %d\n", req->addr, req->order);
+//	printk("user data: %s\n", (char *)req->addr);
 	printk_pagetable(req->addr);
 
 	switch (cmd) {
