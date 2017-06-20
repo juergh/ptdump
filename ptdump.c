@@ -47,7 +47,7 @@ static void printk_prot(unsigned long val, int level)
 	printk(KERN_CONT "| ");
 
 	if (!val) {
-                printk(KERN_CONT "                              ");
+		printk(KERN_CONT "                              ");
 		goto out;
 	}
 	
@@ -65,7 +65,7 @@ static void printk_prot(unsigned long val, int level)
 	printk(KERN_CONT "%s ", (val & _PAGE_NX) ? "NX" : "x ");
 
 out:
-        printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
+	printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
 	       PT_LEVEL_SIZE[level]);
 }
 
@@ -163,7 +163,7 @@ static void printk_prot(unsigned long val, int level)
 	}
 
 out:
-        printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
+	printk(KERN_CONT "| %s %s\n", PT_LEVEL_NAME[level],
 	       PT_LEVEL_SIZE[level]);
 }
 
@@ -194,13 +194,13 @@ static void printk_pagetable(unsigned long addr)
 	printk("  virtual addr: %016lx\n", addr);
 	printk("  page: %016lx\n", (unsigned long)page);
 
-        if (addr > PAGE_OFFSET) {
-                /* kernel virtual address */
-                pgd = pgd_offset(__init_mm, addr);
-        } else {
-                /* user (process) virtual address */
-                pgd = pgd_offset(current->mm, addr);
-        }
+	if (addr > PAGE_OFFSET) {
+		/* kernel virtual address */
+		pgd = pgd_offset(__init_mm, addr);
+	} else {
+		/* user (process) virtual address */
+		pgd = pgd_offset(current->mm, addr);
+	}
 	printk("  pgd: %016lx (%016lx) ", (unsigned long)pgd,
 	       (unsigned long)pgd_val(*pgd));
 	printk_prot(pgd_val(*pgd), PT_LEVEL_PGD);
@@ -209,9 +209,9 @@ static void printk_pagetable(unsigned long addr)
 	printk("  p4d: %016lx (%016lx) ", (unsigned long)p4d,
 	       (unsigned long)p4d_val(*p4d));
 	printk_prot(p4d_val(*p4d), PT_LEVEL_P4D);
-        if (p4d_large(*p4d) || !p4d_present(*p4d)) {
+	if (p4d_large(*p4d) || !p4d_present(*p4d)) {
 		phys_addr = (unsigned long)p4d_pfn(*p4d) << PAGE_SHIFT;
-                offset = addr & ~P4D_MASK;
+		offset = addr & ~P4D_MASK;
 		goto out;
 	}
 
@@ -219,9 +219,9 @@ static void printk_pagetable(unsigned long addr)
 	printk("  pud: %016lx (%016lx) ", (unsigned long)pud,
 	       (unsigned long)pud_val(*pud));
 	printk_prot(pud_val(*pud), PT_LEVEL_PUD);
-        if (pud_large(*pud) || !pud_present(*pud)) {
+	if (pud_large(*pud) || !pud_present(*pud)) {
 		phys_addr = (unsigned long)pud_pfn(*pud) << PAGE_SHIFT;
-                offset = addr & ~PUD_MASK;
+		offset = addr & ~PUD_MASK;
 		goto out;
 	}
 
@@ -229,10 +229,10 @@ static void printk_pagetable(unsigned long addr)
 	printk("  pmd: %016lx (%016lx) ", (unsigned long)pmd,
 	       (unsigned long)pmd_val(*pmd));
 	printk_prot(pmd_val(*pmd), PT_LEVEL_PMD);
-        if (pmd_large(*pmd) || !pmd_present(*pmd)) {
-                phys_addr = (unsigned long)pmd_pfn(*pmd) << PAGE_SHIFT;
-                offset = addr & ~PMD_MASK;
-                goto out;
+	if (pmd_large(*pmd) || !pmd_present(*pmd)) {
+		phys_addr = (unsigned long)pmd_pfn(*pmd) << PAGE_SHIFT;
+		offset = addr & ~PMD_MASK;
+		goto out;
 	}
 
 	pte =  pte_offset_kernel(pmd, addr);
@@ -257,23 +257,23 @@ out:
 
 static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
 {
-        pgd_t *pgd;
+	pgd_t *pgd;
 	p4d_t *p4d;
-        pud_t *pud;
-        pmd_t *pmd;
+	pud_t *pud;
+	pmd_t *pmd;
 
-        if (addr > PAGE_OFFSET) {
-                /* kernel virtual address */
-                pgd = pgd_offset(__init_mm, addr);
-        } else {
-                /* user (process) virtual address */
-                pgd = pgd_offset(current->mm, addr);
-        }
+	if (addr > PAGE_OFFSET) {
+		/* kernel virtual address */
+		pgd = pgd_offset(__init_mm, addr);
+	} else {
+		/* user (process) virtual address */
+		pgd = pgd_offset(current->mm, addr);
+	}
 
-        *level = PT_LEVEL_NONE;
+	*level = PT_LEVEL_NONE;
 
-        if (pgd_none(*pgd))
-                return NULL;
+	if (pgd_none(*pgd))
+		return NULL;
 
 	p4d = p4d_offset(pgd, addr);
 	if (p4d_none(*p4d))
@@ -283,25 +283,25 @@ static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
 	if (p4d_large(*p4d) || !p4d_present(*p4d))
 		return (pte_t *)p4d;
 
-        pud = pud_offset(p4d, addr);
-        if (pud_none(*pud))
-                return NULL;
+	pud = pud_offset(p4d, addr);
+	if (pud_none(*pud))
+		return NULL;
 
-        *level = PT_LEVEL_PUD;
-        if (pud_large(*pud) || !pud_present(*pud))
-                return (pte_t *)pud;
+	*level = PT_LEVEL_PUD;
+	if (pud_large(*pud) || !pud_present(*pud))
+		return (pte_t *)pud;
 
-        pmd = pmd_offset(pud, addr);
-        if (pmd_none(*pmd))
-                return NULL;
+	pmd = pmd_offset(pud, addr);
+	if (pmd_none(*pmd))
+		return NULL;
 
-        *level = PT_LEVEL_PMD;
-        if (pmd_large(*pmd) || !pmd_present(*pmd))
-                return (pte_t *)pmd;
+	*level = PT_LEVEL_PMD;
+	if (pmd_large(*pmd) || !pmd_present(*pmd))
+		return (pte_t *)pmd;
 
-        *level = PT_LEVEL_PTE;
+	*level = PT_LEVEL_PTE;
 
-        return pte_offset_kernel(pmd, addr);
+	return pte_offset_kernel(pmd, addr);
 }
 
 /*
@@ -311,39 +311,39 @@ static pte_t *__lookup_addr(unsigned long addr, unsigned int *level)
  */
 static unsigned long any_virt_to_phys(unsigned long addr)
 {
-        unsigned long phys_addr;
-        unsigned long offset;
-        unsigned int level;
-        pte_t *pte;
+	unsigned long phys_addr;
+	unsigned long offset;
+	unsigned int level;
+	pte_t *pte;
 
-        pte = __lookup_addr(addr, &level);
-        if (!pte)
-                return 0;
+	pte = __lookup_addr(addr, &level);
+	if (!pte)
+		return 0;
 
-        /*
-         * pXX_pfn() returns unsigned long, which must be cast to phys_addr_t
-         * before being left-shifted PAGE_SHIFT bits -- this trick is to
-         * make 32-PAE kernel work correctly.
-         */
-        switch (level) {
-        case PT_LEVEL_P4D:
-                phys_addr = (unsigned long)p4d_pfn(*(p4d_t *)pte) << PAGE_SHIFT;
-                offset = addr & ~P4D_MASK;
-                break;
-        case PT_LEVEL_PUD:
-                phys_addr = (unsigned long)pud_pfn(*(pud_t *)pte) << PAGE_SHIFT;
-                offset = addr & ~PUD_MASK;
-                break;
-        case PT_LEVEL_PMD:
-                phys_addr = (unsigned long)pmd_pfn(*(pmd_t *)pte) << PAGE_SHIFT;
-                offset = addr & ~PMD_MASK;
-                break;
-        default:
-                phys_addr = (unsigned long)pte_pfn(*pte) << PAGE_SHIFT;
-                offset = addr & ~PAGE_MASK;
-        }
+	/*
+	 * pXX_pfn() returns unsigned long, which must be cast to phys_addr_t
+	 * before being left-shifted PAGE_SHIFT bits -- this trick is to
+	 * make 32-PAE kernel work correctly.
+	 */
+	switch (level) {
+	case PT_LEVEL_P4D:
+		phys_addr = (unsigned long)p4d_pfn(*(p4d_t *)pte) << PAGE_SHIFT;
+		offset = addr & ~P4D_MASK;
+		break;
+	case PT_LEVEL_PUD:
+		phys_addr = (unsigned long)pud_pfn(*(pud_t *)pte) << PAGE_SHIFT;
+		offset = addr & ~PUD_MASK;
+		break;
+	case PT_LEVEL_PMD:
+		phys_addr = (unsigned long)pmd_pfn(*(pmd_t *)pte) << PAGE_SHIFT;
+		offset = addr & ~PMD_MASK;
+		break;
+	default:
+		phys_addr = (unsigned long)pte_pfn(*pte) << PAGE_SHIFT;
+		offset = addr & ~PAGE_MASK;
+	}
 
-        return (phys_addr | offset);
+	return (phys_addr | offset);
 }
 
 /*
@@ -356,12 +356,12 @@ static unsigned long phys_to_kern(unsigned long phys_addr)
 
 static int ptdump_open(struct inode *i, struct file *f)
 {
-        return 0;
+	return 0;
 }
 
 static int ptdump_release(struct inode *i, struct file *f)
 {
-        return 0;
+	return 0;
 }
 
 static long ptdump_ioctl(struct file *file, unsigned int cmd,
@@ -435,61 +435,61 @@ static long ptdump_ioctl(struct file *file, unsigned int cmd,
 }
 
 static struct file_operations ptdump_fops = {
-        .open = ptdump_open,
-        .release = ptdump_release,
-        .unlocked_ioctl = ptdump_ioctl,
+	.open = ptdump_open,
+	.release = ptdump_release,
+	.unlocked_ioctl = ptdump_ioctl,
 };
 
 static int __init ptdump_init(void)
 {
 	int ret;
 
-        printk("=============================================================="
+	printk("=============================================================="
 	       "=================\n");
 
-        __init_mm = (struct mm_struct *)kallsyms_lookup_name("init_mm");
-        if (!__init_mm) {
-                printk("failed to lookup 'init_mm'\n");
-                ret = -ENXIO;
-                goto out;
-        }
-        printk("init_mm: %p\n", __init_mm);
+	__init_mm = (struct mm_struct *)kallsyms_lookup_name("init_mm");
+	if (!__init_mm) {
+		printk("failed to lookup 'init_mm'\n");
+		ret = -ENXIO;
+		goto out;
+	}
+	printk("init_mm: %p\n", __init_mm);
 
-        ptdump_major = register_chrdev(0, "ptdump", &ptdump_fops);
-        if (ptdump_major < 0) {
-                printk("failed to register device\n");
-                ret = ptdump_major;
-                goto out;
-        }
+	ptdump_major = register_chrdev(0, "ptdump", &ptdump_fops);
+	if (ptdump_major < 0) {
+		printk("failed to register device\n");
+		ret = ptdump_major;
+		goto out;
+	}
 
-        ptdump_class = class_create(THIS_MODULE, "ptdump");
-        if (IS_ERR(ptdump_class)) {
-                printk("failed to create class\n");
-                ret = PTR_ERR(ptdump_class);
-                goto out_unregister;
-        }
+	ptdump_class = class_create(THIS_MODULE, "ptdump");
+	if (IS_ERR(ptdump_class)) {
+		printk("failed to create class\n");
+		ret = PTR_ERR(ptdump_class);
+		goto out_unregister;
+	}
 
-        device_create(ptdump_class, NULL, MKDEV(ptdump_major, 0), NULL,
+	device_create(ptdump_class, NULL, MKDEV(ptdump_major, 0), NULL,
 		      "ptdump");
 
-        printk("ptdump module loaded\n");
-        return 0;
+	printk("ptdump module loaded\n");
+	return 0;
 
 out_unregister:
-        unregister_chrdev(ptdump_major, "ptdump");
+	unregister_chrdev(ptdump_major, "ptdump");
 out:
-        return ret;
+	return ret;
 
 }
 
 static void __exit ptdump_exit(void)
 {
 	device_destroy(ptdump_class, MKDEV(ptdump_major, 0));
-        class_destroy(ptdump_class);
-        unregister_chrdev(ptdump_major, "ptdump");
+	class_destroy(ptdump_class);
+	unregister_chrdev(ptdump_major, "ptdump");
 
-        printk("ptdump module unloaded\n");
-        printk("=============================================================="
+	printk("ptdump module unloaded\n");
+	printk("=============================================================="
 	       "=================\n");
 }
 
