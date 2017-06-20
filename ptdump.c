@@ -77,14 +77,13 @@ out:
 
 #ifdef CONFIG_ARM64
 
-#define pud_large(x) pud_sect(x)
-#define pmd_large(x) pmd_sect(x)
-
-#define PUD_PAGE_MASK PUD_MASK
-#define PMD_PAGE_MASK PMD_MASK
+#define p4d_pfn(x)	(0)
+#define p4d_large(x)	(0)
+#define pud_large(x)	(pud_sect(x))
+#define pmd_large(x)	(pmd_sect(x))
 
 static const char * const PT_LEVEL_NAME[] = {
-	"   ", "pgd",
+	"   ", "pgd", "p4d",
 	CONFIG_PGTABLE_LEVELS > 3 ? "pud" : "pgd",
 	CONFIG_PGTABLE_LEVELS > 2 ? "pmd" : "pgd",
 	"pte"
@@ -93,6 +92,7 @@ static const char * const PT_LEVEL_NAME[] = {
 #ifdef CONFIG_ARM64_4K_PAGES
 #define _NONE_SIZE "  "
 #define _PGD_SIZE  "  "
+#define _P4D_SIZE  "  "
 #define _PUD_SIZE  "1G"
 #define _PMD_SIZE  "2M"
 #define _PTE_SIZE  "4K"
@@ -101,6 +101,7 @@ static const char * const PT_LEVEL_NAME[] = {
 #ifdef CONFIG_ARM64_16K_PAGES
 #define _NONE_SIZE "   "
 #define _PGD_SIZE  "   "
+#define _P4D_SIZE  "   "
 #define _PUD_SIZE  "   "
 #define _PMD_SIZE  "32M"
 #define _PTE_SIZE  "16K"
@@ -109,13 +110,14 @@ static const char * const PT_LEVEL_NAME[] = {
 #ifdef CONFIG_ARM64_64K_PAGES
 #define _NONE_SIZE "    "
 #define _PGD_SIZE  "    "
+#define _P4D_SIZE  "    "
 #define _PUD_SIZE  "    "
 #define _PMD_SIZE  "512M"
 #define _PTE_SIZE  "64K "
 #endif
 
 static const char * const PT_LEVEL_SIZE[] = {
-	_NONE_SIZE, _PGD_SIZE,
+	_NONE_SIZE, _PGD_SIZE, _P4D_SIZE,
 	CONFIG_PGTABLE_LEVELS > 3 ? _PUD_SIZE : _PGD_SIZE,
 	CONFIG_PGTABLE_LEVELS > 2 ? _PMD_SIZE : _PGD_SIZE,
 	_PTE_SIZE
