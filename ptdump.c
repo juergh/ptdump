@@ -191,7 +191,8 @@ static void printk_pagetable(unsigned long addr)
 	struct page *page = virt_to_page(addr);
 
 	printk("  ------------------------------\n");
-	printk("  virtual addr: %016lx\n", addr);
+	printk("  virtual %s addr: %016lx\n", addr > PAGE_OFFSET ? "kernel" :
+	       "user", addr);
 	printk("  page: %016lx\n", (unsigned long)page);
 
 	if (addr > PAGE_OFFSET) {
